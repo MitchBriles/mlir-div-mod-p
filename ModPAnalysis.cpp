@@ -105,6 +105,31 @@ public:
       return success();
     }
 
+    // For P = 2 the remainder is the low bit, which and, or and xor compute
+    // bitwise. A 0 operand decides an and, and a 1 operand decides an or.
+    if (P == 2 && isa<LLVM::AndOp, LLVM::OrOp, LLVM::XOrOp>(op)) {
+      State lhs = operands[0]->getValue(), rhs = operands[1]->getValue();
+      if (lhs.isBottom() || rhs.isBottom())
+        return success();
+      State out = State::top();
+      if (isa<LLVM::AndOp>(op) && (lhs == State(0) || rhs == State(0)))
+        out = State(0);
+      else if (isa<LLVM::OrOp>(op) && (lhs == State(1) || rhs == State(1)))
+        out = State(1);
+      else if (!lhs.isTop() && !rhs.isTop()) {
+        unsigned a = lhs.remainder;
+        unsigned b = rhs.remainder;
+        if (isa<LLVM::AndOp>(op))
+          out = State(a & b);
+        else if (isa<LLVM::OrOp>(op))
+          out = State(a | b);
+        else
+          out = State(a ^ b);
+      }
+      this->propagateIfChanged(result, result->join(out));
+      return success();
+    }
+
     // either value may be chosen, so the result is the join.
     if (isa<LLVM::SelectOp>(op)) {
       State either =

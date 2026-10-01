@@ -128,6 +128,28 @@ module {
     llvm.return %const : i32
   }
 
+  llvm.func @bitwise(%arg0: i32) -> i32 {
+    %c5 = llvm.mlir.constant(5 : i32) : i32
+    %c6 = llvm.mlir.constant(6 : i32) : i32
+    %c7 = llvm.mlir.constant(7 : i32) : i32
+    // For p = 2 only.
+    %and_even = llvm.and %arg0, %c6 : i32
+    %or_odd = llvm.or %arg0, %c5 : i32
+    %and = llvm.and %c5, %c7 : i32
+    %xor = llvm.xor %c5, %c7 : i32
+    %xor_unknown = llvm.xor %arg0, %c5 : i32
+    llvm.return %and : i32
+  }
 
+  llvm.func @urem() -> i32 {
+    %c7 = llvm.mlir.constant(7 : i32) : i32
+    %m7 = llvm.mlir.constant(-7 : i32) : i32
+    %c4 = llvm.mlir.constant(4 : i32) : i32
+    %c6 = llvm.mlir.constant(6 : i32) : i32
+    // For p = 2 only: 7 urem 6 = 1, and -7 urem 4 = 2^32 - 7 urem 4 = 1.
+    %pos = llvm.urem %c7, %c6 : i32
+    %neg = llvm.urem %m7, %c4 : i32
+    llvm.return %pos : i32
+  }
 
 }
