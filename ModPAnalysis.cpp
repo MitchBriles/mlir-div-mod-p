@@ -64,15 +64,32 @@ public:
     //
     // But 7 + 1 is -8 in an i4, which is 1 (mod 3).
 
-    if (isa<LLVM::AddOp, LLVM::SubOp, LLVM::MulOp>(op)) {
+    if (isa<LLVM::AddOp, LLVM::SubOp, LLVM::MulOp, LLVM::ShlOp>(op)) {
       auto flags = cast<LLVM::IntegerOverflowFlagsInterface>(op);
       if (!wrapPreservesRemainder(op->getResult(0).getType()) &&
           !flags.hasNoSignedWrap())
         return unknown();
       State lhs = operands[0]->getValue(), rhs = operands[1]->getValue();
+      // x << k is x * 2^k, so a constant k becomes the factor 2^k mod P.
+      if (isa<LLVM::ShlOp>(op)) {
+        APInt k;
+        if (!matchPattern(op->getOperand(1), m_ConstantInt(&k)) ||
+            k.uge(k.getBitWidth()))
+          return unknown();
+        unsigned factor = 1;
+        for (uint64_t i = 0; i < k.getZExtValue(); ++i)
+          factor = factor * 2 % P;
+        rhs = State(factor);
+      }
       // Bottom waits for the solver to revisit.
       if (lhs.isBottom() || rhs.isBottom())
         return success();
+      // A multiple of P times anything is a multiple of P.
+      if (isa<LLVM::MulOp, LLVM::ShlOp>(op) &&
+          (lhs == State(0) || rhs == State(0))) {
+        this->propagateIfChanged(result, result->join(State(0)));
+        return success();
+      }
       if (lhs.isTop() || rhs.isTop())
         return unknown();
       unsigned a = lhs.remainder;

@@ -102,4 +102,32 @@ module {
     %top = llvm.srem %arg0, %c6 : i32
     llvm.return %pos : i32
   }
+
+  llvm.func @mul_by_multiple(%arg0: i32) -> i32 {
+    %c6 = llvm.mlir.constant(6 : i32) : i32
+    // 6 * x is 0 (mod 2) and 0 (mod 3) even though x is unknown.
+    %nsw = llvm.mul %arg0, %c6 overflow<nsw> : i32
+    // Without nsw only p = 2 survives wraparound.
+    %wrap = llvm.mul %c6, %arg0 : i32
+    llvm.return %nsw : i32
+  }
+
+  llvm.func @shl(%arg0: i32) -> i32 {
+    %c1 = llvm.mlir.constant(1 : i32) : i32
+    %c3 = llvm.mlir.constant(3 : i32) : i32
+    %c5 = llvm.mlir.constant(5 : i32) : i32
+    %c40 = llvm.mlir.constant(40 : i32) : i32
+    // 5 << 3 = 40.
+    %const = llvm.shl %c5, %c3 overflow<nsw> : i32
+    // x << 1 is even, flags or not.
+    %even = llvm.shl %arg0, %c1 : i32
+    %unknown = llvm.shl %arg0, %c1 overflow<nsw> : i32
+    %by_var = llvm.shl %c5, %arg0 overflow<nsw> : i32
+    // Shifting by the bit width or more is poison.
+    %too_far = llvm.shl %c5, %c40 overflow<nsw> : i32
+    llvm.return %const : i32
+  }
+
+
+
 }
