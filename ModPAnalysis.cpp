@@ -97,7 +97,8 @@ public:
     }
 
     // some ops that preserve remainder.
-    if (isa<LLVM::SExtOp, LLVM::ZExtOp, LLVM::TruncOp, LLVM::SRemOp>(op)) {
+    if (isa<LLVM::SExtOp, LLVM::ZExtOp, LLVM::TruncOp, LLVM::SRemOp,
+            LLVM::URemOp>(op)) {
       // sext preserves the signed value. zext and trunc preserve the low
       // bits, which suffices when P divides 2^N for the narrower width;
       // otherwise nneg (zext) or nsw (trunc) says the signed value is
