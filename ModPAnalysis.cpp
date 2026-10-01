@@ -184,6 +184,7 @@ struct ModPPass : PassWrapper<ModPPass, OperationPass<ModuleOp>> {
   template <unsigned P>
   void print(DataFlowSolver &solver, llvm::raw_ostream &os) {
     AsmState asmState(getOperation());
+    getOperation()->print(llvm::nulls(), asmState);
 
     auto fact = [&](Value value) {
       const auto *lattice = solver.lookupState<ModPLattice<P>>(value);
