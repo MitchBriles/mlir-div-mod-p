@@ -130,6 +130,22 @@ public:
       return success();
     }
 
+    // Values with different remainders are different, so eq is false and ne
+    // is true. Read as signed i1, false is 0 and true is -1.
+    if (auto icmp = dyn_cast<LLVM::ICmpOp>(op)) {
+      LLVM::ICmpPredicate pred = icmp.getPredicate();
+      if (pred != LLVM::ICmpPredicate::eq && pred != LLVM::ICmpPredicate::ne)
+        return unknown();
+      State lhs = operands[0]->getValue(), rhs = operands[1]->getValue();
+      if (lhs.isBottom() || rhs.isBottom())
+        return success();
+      if (lhs.isTop() || rhs.isTop() || lhs == rhs)
+        return unknown();
+      State out = pred == LLVM::ICmpPredicate::eq ? State(0) : State(P - 1);
+      this->propagateIfChanged(result, result->join(out));
+      return success();
+    }
+
     // either value may be chosen, so the result is the join.
     if (isa<LLVM::SelectOp>(op)) {
       State either =

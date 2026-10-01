@@ -152,4 +152,17 @@ module {
     llvm.return %pos : i32
   }
 
+  llvm.func @icmp(%arg0: i32) -> i1 {
+    %c5 = llvm.mlir.constant(5 : i32) : i32
+    %c7 = llvm.mlir.constant(7 : i32) : i32
+    %c12 = llvm.mlir.constant(12 : i32) : i32
+    // 5 and 7 differ mod 3, 5 and 7 but not mod 2. False is 0, true is -1.
+    %eq = llvm.icmp "eq" %c5, %c7 : i32
+    %ne = llvm.icmp "ne" %c5, %c7 : i32
+    // 12 and 7 agree mod 5, so nothing is concluded there.
+    %eq_same = llvm.icmp "eq" %c12, %c7 : i32
+    %eq_unknown = llvm.icmp "eq" %arg0, %c7 : i32
+    %slt = llvm.icmp "slt" %c5, %c7 : i32
+    llvm.return %eq : i1
+  }
 }
