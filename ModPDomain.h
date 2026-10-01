@@ -34,14 +34,6 @@ template <unsigned P> struct ModPState {
     return top();
   }
 
-  static ModPState add(const ModPState &lhs, const ModPState &rhs) {
-    if (lhs.isBottom() || rhs.isBottom())
-      return bottom();
-    if (lhs.isTop() || rhs.isTop())
-      return top();
-    return ModPState(lhs.remainder + rhs.remainder);
-  }
-
   bool operator==(const ModPState &other) const {
     if (kind != other.kind)
       return false;

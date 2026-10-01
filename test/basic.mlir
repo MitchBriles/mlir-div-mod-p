@@ -48,4 +48,58 @@ module {
   ^exit:
     llvm.return %next : i32
   }
+
+  llvm.func @mul(%arg0: i32) -> i32 {
+    %c2 = llvm.mlir.constant(2 : i32) : i32
+    %c3 = llvm.mlir.constant(3 : i32) : i32
+    %wrap = llvm.mul %c2, %c3 : i32
+    %nsw = llvm.mul %c2, %c3 overflow<nsw> : i32
+    %unknown = llvm.mul %c2, %arg0 overflow<nsw> : i32
+    llvm.return %nsw : i32
+  }
+
+  llvm.func @sub(%flag: i1) -> i32 {
+    %c5 = llvm.mlir.constant(5 : i32) : i32
+    %c7 = llvm.mlir.constant(7 : i32) : i32
+    %wrap = llvm.sub %c5, %c7 : i32
+    %nsw = llvm.sub %c5, %c7 overflow<nsw> : i32
+    llvm.return %nsw : i32
+  }
+
+  llvm.func @select(%flag: i1) -> i32 {
+    %c3 = llvm.mlir.constant(3 : i32) : i32
+    %c10 = llvm.mlir.constant(10 : i32) : i32
+    // 3 and 10 agree mod 7 only.
+    %s = llvm.select %flag, %c3, %c10 : i1, i32
+    llvm.return %s : i32
+  }
+
+  llvm.func @casts() -> i64 {
+    %m1 = llvm.mlir.constant(-1 : i32) : i32
+    %c5 = llvm.mlir.constant(5 : i32) : i32
+    %big = llvm.mlir.constant(4294967297 : i64) : i64
+    %fits = llvm.mlir.constant(1000000007 : i64) : i64
+    %sext = llvm.sext %m1 : i32 to i64
+    // Unsigned 2^32 - 1 is 0 (mod 3), not the 2 (mod 3) that -1 is.
+    %zext = llvm.zext %m1 : i32 to i64
+    %zext_nneg = llvm.zext nneg %c5 : i32 to i64
+    // 2^32 + 1 truncates to 1.
+    %trunc = llvm.trunc %big : i64 to i32
+    %trunc_nsw = llvm.trunc %fits overflow<nsw> : i64 to i32
+    llvm.return %sext : i64
+  }
+
+  llvm.func @srem(%arg0: i32) -> i32 {
+    %c7 = llvm.mlir.constant(7 : i32) : i32
+    %m7 = llvm.mlir.constant(-7 : i32) : i32
+    %c0 = llvm.mlir.constant(0 : i32) : i32
+    %c4 = llvm.mlir.constant(4 : i32) : i32
+    %c6 = llvm.mlir.constant(6 : i32) : i32
+    %pos = llvm.srem %c7, %c6 : i32
+    %neg = llvm.srem %m7, %c6 : i32
+    %by4 = llvm.srem %c7, %c4 : i32
+    %by0 = llvm.srem %c7, %c0 : i32
+    %top = llvm.srem %arg0, %c6 : i32
+    llvm.return %pos : i32
+  }
 }

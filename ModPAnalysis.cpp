@@ -47,7 +47,7 @@ public:
       return unknown();
     Lattice *result = results[0];
 
-    // Constants are read as signed, so -1 : i32 is p - 1.
+    // constants are read as signed, so -1 : i32 is p - 1.
     IntegerAttr value;
     if (matchPattern(op, m_Constant(&value))) {
       int64_t r = value.getValue().srem(P);
@@ -57,13 +57,66 @@ public:
       return success();
     }
 
-    // A bottom operand yields bottom, so joining it leaves the result alone
-    // until the solver revisits.
-    if (auto add = dyn_cast<LLVM::AddOp>(op)) {
-      if (!wrapPreservesRemainder(add.getType()) && !add.hasNoSignedWrap())
+    // we need nsw for soundness.
+    // Proof: Consider an i4. If we have 7 + 1, the analysis sees:
+    //
+    // 1 (mod 3) + 1 (mod 3) = 2 (mod 3)
+    //
+    // But 7 + 1 is -8 in an i4, which is 1 (mod 3).
+
+    if (isa<LLVM::AddOp, LLVM::SubOp, LLVM::MulOp>(op)) {
+      auto flags = cast<LLVM::IntegerOverflowFlagsInterface>(op);
+      if (!wrapPreservesRemainder(op->getResult(0).getType()) &&
+          !flags.hasNoSignedWrap())
         return unknown();
-      State sum = State::add(operands[0]->getValue(), operands[1]->getValue());
-      this->propagateIfChanged(result, result->join(sum));
+      State lhs = operands[0]->getValue(), rhs = operands[1]->getValue();
+      // Bottom waits for the solver to revisit.
+      if (lhs.isBottom() || rhs.isBottom())
+        return success();
+      if (lhs.isTop() || rhs.isTop())
+        return unknown();
+      unsigned a = lhs.remainder;
+      unsigned b = rhs.remainder;
+      unsigned r;
+      if (isa<LLVM::AddOp>(op))
+        r = a + b;
+      else if (isa<LLVM::SubOp>(op))
+        r = a + P - b;
+      else
+        r = a * b;
+      this->propagateIfChanged(result, result->join(State(r)));
+      return success();
+    }
+
+    // either value may be chosen, so the result is the join.
+    if (isa<LLVM::SelectOp>(op)) {
+      State either =
+          State::join(operands[1]->getValue(), operands[2]->getValue());
+      this->propagateIfChanged(result, result->join(either));
+      return success();
+    }
+
+    // some ops that preserve remainder.
+    if (isa<LLVM::SExtOp, LLVM::ZExtOp, LLVM::TruncOp, LLVM::SRemOp>(op)) {
+      // sext preserves the signed value. zext and trunc preserve the low
+      // bits, which suffices when P divides 2^N for the narrower width;
+      // otherwise nneg (zext) or nsw (trunc) says the signed value is
+      // preserved.
+      bool keepsRemainder = isa<LLVM::SExtOp>(op);
+      if (auto zext = dyn_cast<LLVM::ZExtOp>(op))
+        keepsRemainder =
+            zext.getNonNeg() || wrapPreservesRemainder(zext.getArg().getType());
+      if (auto trunc = dyn_cast<LLVM::TruncOp>(op))
+        keepsRemainder =
+            trunc.hasNoSignedWrap() || wrapPreservesRemainder(trunc.getType());
+      // x = q*c + (x srem c), so if P divides c then x srem c = x (mod P).
+      APInt c;
+      if (auto srem = dyn_cast<LLVM::SRemOp>(op))
+        keepsRemainder = matchPattern(srem.getRhs(), m_ConstantInt(&c)) &&
+                         !c.isZero() && c.srem(P) == 0;
+      if (!keepsRemainder)
+        return unknown();
+      this->propagateIfChanged(result, result->join(operands[0]->getValue()));
       return success();
     }
 
